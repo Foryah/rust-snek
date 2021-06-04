@@ -1,3 +1,8 @@
+#[path = "game.rs"] mod game;
+#[path = "snake.rs"] mod snake;
+#[path = "map.rs"] mod map;
+#[path = "consts.rs"] mod consts;
+
 extern crate glutin_window;
 extern crate graphics;
 extern crate opengl_graphics;
@@ -5,8 +10,8 @@ extern crate piston;
 
 use piston::window::WindowSettings;
 use piston::event_loop::{EventSettings, Events};
-use piston::input::{RenderArgs, RenderEvent, UpdateArgs, UpdateEvent, ButtonArgs, ButtonEvent};
-use piston::{EventLoop, Button, ButtonState, Key};
+use piston::input::{RenderEvent, UpdateEvent, ButtonEvent};
+use piston::{EventLoop, ButtonState};
 
 use glutin_window::GlutinWindow as Window;
 use opengl_graphics::{GlGraphics, OpenGL};
@@ -14,98 +19,26 @@ use opengl_graphics::{GlGraphics, OpenGL};
 use std::collections::LinkedList;
 use std::iter::FromIterator;
 
-#[derive(Clone, PartialEq)]
-enum Direction {
-    Right, Left, Up, Down
-}
-
-struct Game {
-    gl: GlGraphics,
-    snek: Snake,
-}
-
-impl Game {
-    fn render(&mut self, arg: &RenderArgs) {
-        let GREEN: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
-
-        self.gl.draw(arg.viewport(), |_c, gl| {
-            graphics::clear(GREEN, gl);
-        });
-
-        self.snek.render(&mut self.gl, arg);
-    }
-
-    fn update(&mut self) {
-        self.snek.update();
-    }
-
-    fn pressed(&mut self, btn: &Button) {
-        let last_direction = self.snek.dir.clone();
-
-        self.snek.dir = match btn {
-            &Button::Keyboard(Key::Up)
-                if last_direction != Direction::Down => Direction::Up,
-            &Button::Keyboard(Key::Down)
-                if last_direction != Direction::Up => Direction::Down,
-            &Button::Keyboard(Key::Left)
-                if last_direction != Direction::Right => Direction::Left,
-            &Button::Keyboard(Key::Right)
-                if last_direction != Direction::Left => Direction::Right,
-            _ => last_direction
-        };
-    }
-}
-
-struct Snake {
-    body: LinkedList<(i32, i32)>,
-    dir: Direction,
-}
-
-impl Snake {
-    fn render(&self, gl: &mut GlGraphics, arg: &RenderArgs) {
-        use graphics;
-
-        let RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
-
-        let squares: Vec<graphics::types::Rectangle> = self.body
-            .iter()
-            .map(|&(x, y)| {
-                graphics::rectangle::square(
-                    (x * 20) as f64,
-                    (y * 20) as f64,
-                    20_f64
-                )
-            })
-            .collect();
-
-        gl.draw(arg.viewport(), |c, gl| {
-            let transform = c.transform;
-            squares.into_iter()
-                .for_each(|square| {
-                    graphics::rectangle(RED, square, transform, gl);
-                })
-        });
-    }
-    fn update(&mut self) {
-        let mut new_head = (*self.body.front().expect("Snek has no body!")).clone();
-        match self.dir {
-            Direction::Left => new_head.0 -= 1,
-            Direction::Right => new_head.0 += 1,
-            Direction::Up => new_head.1 -= 1,
-            Direction::Down => new_head.1 += 1,
-        }
-
-        self.body.push_front(new_head);
-        self.body.pop_back().unwrap();
-    }
-}
+use crate::game::Game;
+use crate::snake::{Snake, Direction};
+use crate::map::Map;
+use crate::consts::{SCREEN_END_X, SCREEN_END_Y, SQUARE_SIZE};
 
 fn main() {
+    let full_map: Vec<(u32, u32)> = vec![(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6), (0, 7), (0, 8), (0, 9), (0, 10),
+                                         (0, 11), (0, 12), (0, 13), (0, 14), (0, 15), (0, 16), (0, 17), (0, 18), (0, 19), (0, 20),
+                                         (20, 0), (20, 1), (20, 2), (20, 3), (20, 4), (20, 5), (20, 6), (20, 7), (20, 8), (20, 9), (20, 10),
+                                         (20, 11), (20, 12), (20, 13), (20, 14), (20, 15), (20, 16), (20, 17), (20, 18), (20, 19), (20, 20),
+                                         (1, 0), (2, 0), (3, 0), (4, 0), (5, 0), (6, 0), (7, 0), (8, 0), (9, 0), (10, 0),
+                                         (11, 0), (12, 0), (13, 0), (14, 0), (15, 0), (16, 0), (17, 0), (18, 0), (19, 0),
+                                         (1, 20), (2, 20), (3, 20), (4, 20), (5, 20), (6, 20), (7, 20), (8, 20), (9, 20), (10, 20),
+                                         (11, 20), (12, 20), (13, 20), (14, 20), (15, 20), (16, 20), (17, 20), (18, 20), (19, 20)];
+
     let opengl = OpenGL::V3_2;
 
     let mut window: Window = WindowSettings::new(
         "Snek Game",
-        [400, 400]
+        [(SCREEN_END_X + 1) * SQUARE_SIZE, (SCREEN_END_Y + 1) * SQUARE_SIZE]
     ).graphics_api(opengl)
         .exit_on_esc(true)
         .build()
@@ -114,8 +47,11 @@ fn main() {
     let mut game = Game {
         gl: GlGraphics::new(opengl),
         snek: Snake {
-            body: LinkedList::from_iter((vec![(0, 0), (0, 1), (0, 2), (0, 3)]).into_iter()),
+            body: LinkedList::from_iter((vec![(10, 10), (10, 11), (10, 12)]).into_iter()),
             dir: Direction::Right
+        },
+        map: Map {
+            walls: LinkedList::from_iter(full_map.into_iter()),
         },
     };
 
@@ -125,7 +61,7 @@ fn main() {
             game.render(&r);
         }
 
-        if let Some(u) = e.update_args() {
+        if let Some(_u) = e.update_args() {
             game.update();
         }
 
